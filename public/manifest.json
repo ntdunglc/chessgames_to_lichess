@@ -9,12 +9,8 @@
     "48": "icons/icon_48.png",
     "128": "icons/icon_128.png"
   },
-  "background": {
-    "service_worker": "background.js"
-  },
   "action": {
-    "default_title": "Lichess Import",
-    "default_popup": "popup.html"
+    "default_title": "Lichess Import"
   },
   "permissions": [
     "storage"
@@ -22,7 +18,7 @@
   "content_scripts": [
     {
       "matches": [
-        "<all_urls>"
+        "https://www.chessgames.com/perl/chessgame?*"
       ],
       "run_at": "document_idle",
       "js": [

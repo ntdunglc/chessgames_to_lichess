@@ -17,27 +17,41 @@ console.log(
   `Page title is: '${pageTitle}' - evaluated by Chrome extension's 'contentScript.js' file`
 );
 
-// Communicate with background file by sending a message
-chrome.runtime.sendMessage(
-  {
-    type: 'GREETINGS',
-    payload: {
-      message: 'Hello, my name is Con. I am from ContentScript.',
+async function post(url = '', data = {}) {
+  var formBody = [];
+  for (var property in data) {
+    var encodedKey = encodeURIComponent(property);
+    var encodedValue = encodeURIComponent(data[property]);
+    formBody.push(encodedKey + "=" + encodedValue);
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
     },
-  },
-  (response) => {
-    console.log(response.message);
+    body: formBody
+  });
+  return response.json();
+}
+let pngUrl = Array.from(document.querySelectorAll("a")).map(n => n.href).filter(href => href.includes("viewGamePGN"))[0];
+
+const response = fetch(pngUrl)
+.then(response=>response.text())
+.then(
+  response => {
+    let importUrl = "https://lichess.org/api/import";
+    let req = { pgn: response };
+    post(importUrl, req)
+      .then((response) => {
+        // Open the page on a new tab
+        let url = response["url"] ? response["url"] : "";
+        if (url) {
+          let lichessPage = window.open(url,"_self");
+        } else alert("Could not import game");
+    
+      }).catch((e) => {
+        alert("Error getting response from lichess.org");
+        throw new Error("Response error");
+      });
   }
 );
-
-// Listen for message
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'COUNT') {
-    console.log(`Current count is ${request.payload.count}`);
-  }
-
-  // Send an empty response
-  // See https://github.com/mozilla/webextension-polyfill/issues/130#issuecomment-531531890
-  sendResponse({});
-  return true;
-});
