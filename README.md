@@ -1,21 +1,11 @@
-# <img src="public/icons/icon_48.png" width="45" align="left"> Lichess Import
+# Lichess Import
 
-My Chrome Extension
-
-## Features
-
-- Feature 1
-- Feature 2
+Simple extension to automatically import game from https://www.chessgames.com/perl/chessgame?gid=??? to lichess analysis.
 
 ## Install
-
-[**Chrome** extension]() <!-- TODO: Add chrome extension link inside parenthesis -->
-
-## Contribution
-
-Suggestions and pull requests are welcomed!.
-
----
+- Run `npm run watch`
+- Go to chrome://extensions
+- Enable Developer mode and Load Unpacked with the generated /build folder
 
 This project was bootstrapped with [Chrome Extension CLI](https://github.com/dutiyesh/chrome-extension-cli)
 
