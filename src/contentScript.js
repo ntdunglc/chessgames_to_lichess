@@ -1,57 +1,89 @@
-'use strict';
-
-// Content script file will run in the context of web page.
-// With content script you can manipulate the web pages using
-// Document Object Model (DOM).
-// You can also pass information to the parent extension.
-
-// We execute this script by making an entry in manifest.json file
-// under `content_scripts` property
-
-// For more information on Content Scripts,
-// See https://developer.chrome.com/extensions/content_scripts
-
-// Log `title` of current active web page
-const pageTitle = document.head.getElementsByTagName('title')[0].innerHTML;
-console.log(
-  `Page title is: '${pageTitle}' - evaluated by Chrome extension's 'contentScript.js' file`
-);
-
-async function post(url = '', data = {}) {
-  var formBody = [];
-  for (var property in data) {
-    var encodedKey = encodeURIComponent(property);
-    var encodedValue = encodeURIComponent(data[property]);
-    formBody.push(encodedKey + "=" + encodedValue);
-  }
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: formBody
-  });
-  return response.json();
+// Helper function to extract game ID from chessgames.com URL
+function getChessGamesId() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('gid') || 'unknown';
 }
-let pngUrl = Array.from(document.querySelectorAll("a")).map(n => n.href).filter(href => href.includes("viewGamePGN"))[0];
 
-const response = fetch(pngUrl)
-.then(response=>response.text())
-.then(
-  response => {
-    let importUrl = "https://lichess.org/api/import";
-    let req = { pgn: response };
-    post(importUrl, req)
-      .then((response) => {
-        // Open the page on a new tab
-        let url = response["url"] ? response["url"] : "";
-        if (url) {
-          let lichessPage = window.open(url,"_self");
-        } else alert("Could not import game");
-    
-      }).catch((e) => {
-        alert("Error getting response from lichess.org");
-        throw new Error("Response error");
+// Helper function to create storage key
+function createStorageKey(gameId) {
+  return `pgnData_${gameId}`;
+}
+
+// Check which site we're on
+if (window.location.hostname === "www.chessgames.com") {
+  const gameId = getChessGamesId();
+  const storageKey = createStorageKey(gameId);
+
+  let pngUrl = Array.from(document.querySelectorAll("a"))
+    .map(n => n.href)
+    .filter(href => href.includes("viewGamePGN"))[0];
+
+  fetch(pngUrl)
+    .then(response => response.text())
+    .then(pgnContent => {
+      // Store the PGN content with game ID in the key
+      chrome.storage.local.set({
+        [storageKey]: {
+          pgn: pgnContent,
+          timestamp: Date.now()
+        }
+      }, function () {
+        // Pass the game ID in the URL to lichess
+        window.location.href = `https://lichess.org/paste#${gameId}`;
       });
-  }
-);
+    })
+    .catch((e) => {
+      console.error("Error:", e);
+      alert("Error fetching the game");
+    });
+
+} else if (window.location.hostname === "lichess.org") {
+  // Get the game ID from the URL hash
+  const gameId = window.location.hash.slice(1);
+  const storageKey = createStorageKey(gameId);
+
+  chrome.storage.local.get([storageKey], function (result) {
+    const data = result[storageKey];
+    if (data && data.pgn) {
+      const checkForm = setInterval(() => {
+        const textarea = document.querySelector("form.import textarea[name=pgn]");
+        if (textarea) {
+          clearInterval(checkForm);
+
+          // Fill the textarea with PGN
+          textarea.value = data.pgn;
+
+          // Find and check the analyze checkbox
+          const analyzeCheckbox = document.querySelector("input[name=analyse]");
+          if (analyzeCheckbox) {
+            analyzeCheckbox.checked = true;
+          }
+
+          // Submit the form
+          const form = document.querySelector("form.import");
+          if (form) {
+            form.submit();
+          }
+
+          // Clear just this game's stored PGN
+          chrome.storage.local.remove(storageKey);
+        }
+      }, 100);
+    }
+  });
+
+  // Cleanup old stored PGNs (older than 5 minutes)
+  chrome.storage.local.get(null, function (items) {
+    const now = Date.now();
+    const keysToRemove = Object.entries(items)
+      .filter(([key, value]) =>
+        key.startsWith('pgnData_') &&
+        (now - value.timestamp) > 5 * 60 * 1000
+      )
+      .map(([key]) => key);
+    
+    if (keysToRemove.length > 0) {
+      chrome.storage.local.remove(keysToRemove);
+    }
+  });
+}
